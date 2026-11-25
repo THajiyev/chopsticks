@@ -22,8 +22,10 @@ you do exactly one of:
   - **Suicide splits:** you may put everything on one hand and leave the other
     dead: (1,1) → (0,2), (1,3) → (0,4), (2,2) → (0,4).
 
-A dead hand can't attack or be attacked. Lose both hands and you lose. A game
-that reaches 200 moves is a draw.
+A dead hand can't attack or be attacked. Lose both hands and you lose. The web
+game has no move limit. The Python training and evaluation stop
+computer-vs-computer games at 200 moves (`Rules.max_moves`) and count them as
+draws, because two programs in a drawn position would otherwise never finish.
 
 ### Rule presets
 

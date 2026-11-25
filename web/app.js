@@ -49,7 +49,7 @@ const app = {
   hands: { you: [1, 1], ai: [1, 1] }, // display order (left, right); not sorted
   turn: "you",
   plies: 0,
-  over: null,           // null | "you" | "ai" | "draw"
+  over: null,           // null | "you" | "ai" (no move limit, so no draws)
   history: [],          // [{who, text, before: {hands, turn, plies}}]
   selected: null,       // index of your selected hand
   hint: null,           // {move, text, state}
@@ -85,8 +85,10 @@ function finishMove(side, text, effect) {
   app.selected = null;
   app.hint = null;
   app.splitOpen = false;
+  // No move limit here: the game runs until someone loses both hands. (Python's
+  // training and evaluation still cap computer-vs-computer games at
+  // rules.max_moves, since two programs in a drawn position would never stop.)
   if (isDead(app.hands[other(side)])) app.over = side;
-  else if (app.plies >= app.rules.max_moves) app.over = "draw";
   else app.turn = other(side);
   render();
   land(effect);
@@ -267,7 +269,6 @@ function computeHint() {
   const state = canonFor("you");
   const [value, dist, opt] = app.data.solver[stateKey(state)];
   const move = moveFromKey(opt[0]);
-  const left = app.rules.max_moves - app.plies;
   let text;
   if (value === "WIN") {
     text = `You can force a win in ${plural(Math.ceil(dist / 2), "move")}.`;
@@ -276,7 +277,6 @@ function computeHint() {
   } else {
     text = "Neither side can force a win from here. This move keeps it level.";
   }
-  if (dist !== null && dist > left) text += ` The ${app.rules.max_moves}-move limit will end the game as a draw first.`;
   if (move.type === "split") {
     const before = canonHands(...app.hands.you);
     text += ` Suggested: ${describeSplit(before, move.hands)} ${fmt(before)} → ${fmt(move.hands)}.`;
@@ -415,7 +415,6 @@ function renderHands(side) {
 function statusText() {
   if (app.over === "you") return ["You win!", "win"];
   if (app.over === "ai") return ["The computer wins.", "loss"];
-  if (app.over === "draw") return [`Draw: the game reached ${app.rules.max_moves} moves.`, ""];
   if (app.turn === "ai") return ["Computer is thinking…", ""];
   if (app.selected !== null) return ["Now pick one of the computer's hands.", ""];
   return ["Your move. Drag a hand onto theirs, or split.", ""];
@@ -467,7 +466,7 @@ function render() {
   const lastEl = $("last-move");
   lastEl.textContent = last?.text ?? "";
   lastEl.className = `last-move${last ? ` by-${last.who}` : ""}`;
-  $("move-count").textContent = `Move ${app.plies} of ${app.rules.max_moves}`;
+  $("move-count").textContent = `Move ${app.plies}`;
   $("summary").textContent = summaryText();
 
   const hintEl = $("hint-text");
