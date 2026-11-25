@@ -11,74 +11,100 @@
   <script type="module" src="app.js"></script>
 </head>
 <body>
-  <div class="page">
-    <main class="board" aria-labelledby="title">
-      <header class="board-head">
-        <h1 id="title">Chopsticks</h1>
-        <p class="move-count" id="move-count" aria-live="polite"></p>
+  <main class="game">
+    <header class="top">
+      <h1>Chopsticks</h1>
+      <button type="button" class="icon-btn" id="settings-btn" aria-haspopup="dialog" aria-controls="settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22">
+          <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+          <circle cx="15" cy="7" r="2.2" />
+          <circle cx="9" cy="17" r="2.2" />
+        </svg>
+        <span>Settings</span>
+      </button>
+    </header>
+
+    <div class="meta">
+      <button type="button" class="summary" id="summary"></button>
+      <span class="move-count" id="move-count"></span>
+    </div>
+
+    <section class="side side-ai" aria-label="Computer's hands">
+      <p class="side-name">Computer</p>
+      <div class="hands" id="ai-hands"></div>
+    </section>
+
+    <div class="status-wrap">
+      <p class="status" id="status" aria-live="polite">Loading…</p>
+      <p class="hint-text" id="hint-text" hidden></p>
+    </div>
+
+    <section class="side side-you" aria-label="Your hands">
+      <div class="hands" id="you-hands"></div>
+      <p class="side-name">You</p>
+    </section>
+
+    <div class="actions">
+      <button type="button" class="btn" id="split-btn" aria-expanded="false" aria-controls="split-panel">Split</button>
+      <button type="button" class="btn" id="hint-btn">Hint</button>
+      <button type="button" class="btn" id="undo-btn">Undo</button>
+      <button type="button" class="btn" id="new-game">New game</button>
+    </div>
+
+    <div class="split-panel" id="split-panel" hidden>
+      <p class="split-title">Move your fingers between your hands:</p>
+      <div class="split-options" id="split-options"></div>
+    </div>
+
+    <details class="history">
+      <summary>Moves <span id="history-count"></span></summary>
+      <ol id="history-list" class="history-list"></ol>
+      <p class="history-empty" id="history-empty">No moves yet.</p>
+    </details>
+  </main>
+
+  <dialog id="settings" class="sheet" aria-labelledby="settings-title">
+    <form method="dialog" class="sheet-body" id="settings-form">
+      <header class="sheet-head">
+        <h2 id="settings-title" tabindex="-1" autofocus>Settings</h2>
+        <button type="submit" value="cancel" class="icon-btn close" aria-label="Close settings" formnovalidate>
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
       </header>
 
-      <section class="side side-ai" aria-label="Computer's hands">
-        <p class="side-name">Computer</p>
-        <div class="hands" id="ai-hands"></div>
-      </section>
+      <fieldset>
+        <legend>Opponent</legend>
+        <p class="help">How the computer picks its moves.</p>
+        <div class="choices" id="level-choices"></div>
+      </fieldset>
 
-      <div class="status-wrap">
-        <p class="status" id="status" aria-live="polite">Loading…</p>
-        <p class="hint-text" id="hint-text" hidden></p>
-      </div>
+      <fieldset>
+        <legend>Rules</legend>
+        <p class="help">Which version of the game to play. Each one has its own trained opponents.</p>
+        <div class="choices" id="preset-choices"></div>
+      </fieldset>
 
-      <section class="side side-you" aria-label="Your hands">
-        <div class="hands" id="you-hands"></div>
-        <p class="side-name">You</p>
-      </section>
-
-      <div class="actions">
-        <button type="button" class="btn" id="split-btn" aria-expanded="false" aria-controls="split-panel">Split</button>
-        <button type="button" class="btn" id="hint-btn">Hint</button>
-        <button type="button" class="btn" id="undo-btn">Undo</button>
-      </div>
-      <div class="split-panel" id="split-panel" hidden>
-        <p class="split-title">Move your fingers between hands:</p>
-        <div class="split-options" id="split-options"></div>
-      </div>
-    </main>
-
-    <aside class="panel">
-      <section class="settings" aria-labelledby="settings-title">
-        <h2 id="settings-title">Game</h2>
-        <label class="field">
-          <span>Difficulty</span>
-          <select id="level"></select>
-        </label>
-        <label class="field">
-          <span>Rules</span>
-          <select id="preset"></select>
-        </label>
-        <p class="rules-desc" id="rules-desc"></p>
-        <label class="field">
-          <span>Who goes first</span>
-          <select id="first">
-            <option value="you">You</option>
-            <option value="ai">Computer</option>
-          </select>
-        </label>
-        <button type="button" class="btn btn-primary" id="new-game">New game</button>
-      </section>
-
-      <section class="history" aria-labelledby="history-title">
-        <h2 id="history-title">Moves</h2>
-        <ol id="history-list" class="history-list"></ol>
-        <p class="history-empty" id="history-empty">No moves yet.</p>
-      </section>
+      <fieldset>
+        <legend>Who moves first</legend>
+        <div class="segmented">
+          <label><input type="radio" name="first" value="you"><span>You</span></label>
+          <label><input type="radio" name="first" value="ai"><span>Computer</span></label>
+        </div>
+      </fieldset>
 
       <details class="how">
         <summary>How to play</summary>
-        <p>Click one of your hands, then one of the computer's. Their hand gains as many fingers as yours has. Counts wrap past 4, so 4 + 4 leaves 3; exactly 5 and the hand is dead. (The cutoff rules kill any hand that reaches 5 or more.)</p>
+        <p>Drag one of your hands onto one of the computer's, or click yours and then theirs. Their hand gains as many fingers as yours has.</p>
+        <p>Counts wrap past 4: 4 + 4 leaves 3. Exactly 5 and the hand is dead. (Under the cutoff rules, any total of 5 or more kills.)</p>
         <p>Instead of attacking you can split: share your fingers out again. Splitting onto a dead hand brings it back. A split that empties one hand is a suicide split.</p>
-        <p>Lose both hands and you lose. If the game reaches the move limit, it's a draw.</p>
+        <p>Lose both hands and you lose. A game that reaches the move limit is a draw.</p>
       </details>
-    </aside>
-  </div>
+
+      <footer class="sheet-foot">
+        <button type="submit" value="apply" class="btn btn-primary">Start new game</button>
+        <p class="help">Changes take effect when a new game starts.</p>
+      </footer>
+    </form>
+  </dialog>
 </body>
 </html>

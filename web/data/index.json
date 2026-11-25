@@ -32,7 +32,11 @@
     "allow_suicide_split": true,
     "max_moves": 200
    },
-   "description": "Sums wrap mod 5 (4 + 4 = 3; exactly 5 is dead). Revives and suicide splits allowed."
+   "description": "Sums wrap mod 5 (4 + 4 = 3; exactly 5 is dead). Revives and suicide splits allowed.",
+   "start": {
+    "value": "DRAW",
+    "distance": null
+   }
   },
   "no_suicide": {
    "rules": {
@@ -43,7 +47,11 @@
     "allow_suicide_split": false,
     "max_moves": 200
    },
-   "description": "Like standard, but a split may not leave a hand at 0."
+   "description": "Like standard, but a split may not leave a hand at 0.",
+   "start": {
+    "value": "DRAW",
+    "distance": null
+   }
   },
   "cutoff": {
    "rules": {
@@ -54,7 +62,11 @@
     "allow_suicide_split": true,
     "max_moves": 200
    },
-   "description": "Like standard, but any hand reaching 5 or more dies (4 + 4 = dead)."
+   "description": "Like standard, but any hand reaching 5 or more dies (4 + 4 = dead).",
+   "start": {
+    "value": "LOSS",
+    "distance": 26
+   }
   },
   "no_splits": {
    "rules": {
@@ -65,7 +77,11 @@
     "allow_suicide_split": true,
     "max_moves": 200
    },
-   "description": "Attacks only; no splits at all."
+   "description": "Attacks only; no splits at all.",
+   "start": {
+    "value": "DRAW",
+    "distance": null
+   }
   },
   "no_revive": {
    "rules": {
@@ -76,7 +92,11 @@
     "allow_suicide_split": true,
     "max_moves": 200
    },
-   "description": "Dead hands stay dead; splits only when both hands are alive."
+   "description": "Dead hands stay dead; splits only when both hands are alive.",
+   "start": {
+    "value": "DRAW",
+    "distance": null
+   }
   }
  }
 }

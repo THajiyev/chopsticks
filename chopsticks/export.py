@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .game import is_terminal, state_key, successors
+from .game import initial_state, is_terminal, state_key, successors
 from .qlearn import QTable
 from .rules import PRESET_DESCRIPTIONS, PRESETS, Rules
 from .solver import Solution
@@ -73,8 +73,16 @@ def export_all(
         "default": "standard",
         "levels": LEVELS,
         "presets": {
-            name: {"rules": PRESETS[name].to_dict(), "description": PRESET_DESCRIPTIONS[name]}
-            for name in solutions
+            name: {
+                "rules": PRESETS[name].to_dict(),
+                "description": PRESET_DESCRIPTIONS[name],
+                # Value of the opening for the first player, e.g. "DRAW" or "LOSS".
+                "start": {
+                    "value": sol.value[initial_state()].value,
+                    "distance": sol.distance[initial_state()],
+                },
+            }
+            for name, sol in solutions.items()
         },
     }
     p = out_dir / "index.json"

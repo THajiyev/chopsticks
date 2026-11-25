@@ -147,15 +147,18 @@ the side-by-side comparison.
 
 ## The web game
 
-- Click one of your hands, then one of the computer's, to attack. Dead hands
-  stay on the table, greyed out with a dashed outline, until you revive them.
+- Drag one of your hands onto one of the computer's to attack (mouse or touch),
+  or click yours and then theirs. Dead hands stay on the table, greyed out with
+  a dashed outline, until you revive them.
 - **Split** lists the legal splits, labeled by type: "Revive: (0,3) → (1,2)",
   "Suicide split: (1,1) → (0,2)". The button is disabled when no split is legal.
 - **Hint** shows the solver's verdict ("You can force a win in 3 moves") and
   outlines an optimal move.
 - **Undo** takes back your last move and the computer's reply.
-- Difficulty: Random, Easy (half-trained B), Medium (Naive A), Hard (Minimax B),
-  Perfect (solver). Rules preset and who moves first are also selectable.
+- **Settings** (top right) chooses the opponent, the rule set and who moves
+  first. Each choice explains itself; rule sets also say who wins with perfect
+  play. Opponents: Random, Easy (half-trained B), Medium (Naive A),
+  Hard (Minimax B) and Perfect (solver).
 
 ## Tests
 
