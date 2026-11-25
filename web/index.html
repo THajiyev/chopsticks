@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chopsticks</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <div class="page">
+    <main class="board" aria-labelledby="title">
+      <header class="board-head">
+        <h1 id="title">Chopsticks</h1>
+        <p class="move-count" id="move-count" aria-live="polite"></p>
+      </header>
+
+      <section class="side side-ai" aria-label="Computer's hands">
+        <p class="side-name">Computer</p>
+        <div class="hands" id="ai-hands"></div>
+      </section>
+
+      <div class="status-wrap">
+        <p class="status" id="status" aria-live="polite">Loading…</p>
+        <p class="hint-text" id="hint-text" hidden></p>
+      </div>
+
+      <section class="side side-you" aria-label="Your hands">
+        <div class="hands" id="you-hands"></div>
+        <p class="side-name">You</p>
+      </section>
+
+      <div class="actions">
+        <button type="button" class="btn" id="split-btn" aria-expanded="false" aria-controls="split-panel">Split</button>
+        <button type="button" class="btn" id="hint-btn">Hint</button>
+        <button type="button" class="btn" id="undo-btn">Undo</button>
+      </div>
+      <div class="split-panel" id="split-panel" hidden>
+        <p class="split-title">Move your fingers between hands:</p>
+        <div class="split-options" id="split-options"></div>
+      </div>
+    </main>
+
+    <aside class="panel">
+      <section class="settings" aria-labelledby="settings-title">
+        <h2 id="settings-title">Game</h2>
+        <label class="field">
+          <span>Difficulty</span>
+          <select id="level"></select>
+        </label>
+        <label class="field">
+          <span>Rules</span>
+          <select id="preset"></select>
+        </label>
+        <p class="rules-desc" id="rules-desc"></p>
+        <label class="field">
+          <span>Who goes first</span>
+          <select id="first">
+            <option value="you">You</option>
+            <option value="ai">Computer</option>
+          </select>
+        </label>
+        <button type="button" class="btn btn-primary" id="new-game">New game</button>
+      </section>
+
+      <section class="history" aria-labelledby="history-title">
+        <h2 id="history-title">Moves</h2>
+        <ol id="history-list" class="history-list"></ol>
+        <p class="history-empty" id="history-empty">No moves yet.</p>
+      </section>
+
+      <details class="how">
+        <summary>How to play</summary>
+        <p>Click one of your hands, then one of the computer's. Their hand gains as many fingers as yours has. Five or more and it's dead.</p>
+        <p>Instead of attacking you can split: share your fingers out again. Splitting onto a dead hand brings it back. A split that empties one hand is a suicide split.</p>
+        <p>Lose both hands and you lose. If the game reaches the move limit, it's a draw.</p>
+      </details>
+    </aside>
+  </div>
+</body>
+</html>
