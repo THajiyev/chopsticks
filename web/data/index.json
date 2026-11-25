@@ -1,0 +1,82 @@
+{
+ "default": "standard",
+ "levels": [
+  {
+   "id": "random",
+   "label": "Random"
+  },
+  {
+   "id": "easy",
+   "label": "Easy (half-trained B)"
+  },
+  {
+   "id": "naive",
+   "label": "Medium (Naive A)"
+  },
+  {
+   "id": "minimax",
+   "label": "Hard (Minimax B)"
+  },
+  {
+   "id": "perfect",
+   "label": "Perfect (solver)"
+  }
+ ],
+ "presets": {
+  "standard": {
+   "rules": {
+    "overflow": "cutoff",
+    "splits_allowed": true,
+    "even_splits_only": false,
+    "allow_revive": true,
+    "allow_suicide_split": true,
+    "max_moves": 200
+   },
+   "description": "Cutoff at 5, splits allowed, revives and suicide splits allowed."
+  },
+  "no_suicide": {
+   "rules": {
+    "overflow": "cutoff",
+    "splits_allowed": true,
+    "even_splits_only": false,
+    "allow_revive": true,
+    "allow_suicide_split": false,
+    "max_moves": 200
+   },
+   "description": "Like standard, but a split may not leave a hand at 0."
+  },
+  "rollover": {
+   "rules": {
+    "overflow": "rollover",
+    "splits_allowed": true,
+    "even_splits_only": false,
+    "allow_revive": true,
+    "allow_suicide_split": true,
+    "max_moves": 200
+   },
+   "description": "Like standard, but a hand wraps around mod 5 (exactly 5 is dead)."
+  },
+  "no_splits": {
+   "rules": {
+    "overflow": "cutoff",
+    "splits_allowed": false,
+    "even_splits_only": false,
+    "allow_revive": true,
+    "allow_suicide_split": true,
+    "max_moves": 200
+   },
+   "description": "Attacks only; no splits at all."
+  },
+  "no_revive": {
+   "rules": {
+    "overflow": "cutoff",
+    "splits_allowed": true,
+    "even_splits_only": false,
+    "allow_revive": false,
+    "allow_suicide_split": true,
+    "max_moves": 200
+   },
+   "description": "Dead hands stay dead; splits only when both hands are alive."
+  }
+ }
+}
