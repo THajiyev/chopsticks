@@ -1,0 +1,13 @@
+[project]
+name = "chopsticks-ai"
+version = "0.1.0"
+description = "Exact solver, Q-learning agents and a web game for the hand game Chopsticks"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.23", "matplotlib>=3.6"]
+
+[project.scripts]
+chopsticks = "chopsticks.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
