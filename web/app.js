@@ -6,9 +6,15 @@ import {
   successors,
 } from "./engine.js";
 
-const AI_DELAY_MS = 650;
+const AI_DELAY_MS = 550;
 const DRAG_THRESHOLD_PX = 6;
+const GLIDE_MS = 520;        // attacking hand travelling onto its target
+const GLIDE_HOLD_MS = 140;   // pause on the target before the hit registers
+const RETURN_MS = 380;       // attacking hand sliding back home
 const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const handEl = (side, idx) => document.querySelector(`#${side}-hands .hand[data-i="${idx}"]`);
 
 // Player-facing names and explanations. Level ids match web/data/index.json.
 const LEVELS = [
@@ -48,6 +54,7 @@ const app = {
   selected: null,       // index of your selected hand
   hint: null,           // {move, text, state}
   splitOpen: false,
+  busy: false,          // an attack animation is playing; ignore input
   gen: 0,               // bumps on new game / undo to cancel pending AI moves
 };
 
@@ -68,8 +75,11 @@ function snapshot() {
   return { hands: { you: [...app.hands.you], ai: [...app.hands.ai] }, turn: app.turn, plies: app.plies };
 }
 
-/** Bookkeeping shared by every move: log it, advance the clock, check for the end. */
-function finishMove(side, text, hitIdx) {
+/**
+ * Bookkeeping shared by every move: log it, advance the clock, check for the
+ * end, redraw, then play the landing animation described by `effect`.
+ */
+function finishMove(side, text, effect) {
   app.history[app.history.length - 1].text = text;
   app.plies += 1;
   app.selected = null;
@@ -79,66 +89,148 @@ function finishMove(side, text, hitIdx) {
   else if (app.plies >= app.rules.max_moves) app.over = "draw";
   else app.turn = other(side);
   render();
-  if (hitIdx !== undefined) flash(other(side), hitIdx);
+  land(effect);
   if (!app.over && app.turn === "ai") scheduleAi();
 }
 
+/** Plain-language result of an attack, spelling out wrap-arounds and kills. */
 function attackText(side, fromVal, toVal, after) {
-  const result = after === 0 ? "It's dead." : `Now ${after}.`;
+  const total = fromVal + toVal;
+  let result;
+  if (after === 0) result = total === 5 ? "Exactly 5, so it's dead." : "That's 5 or more, so it's dead.";
+  else if (total > 5) result = `${toVal} + ${fromVal} = ${total}, which wraps to ${after}.`;
+  else result = `Now ${after}.`;
   return side === "you"
     ? `You tapped the computer's ${toVal} with your ${fromVal}. ${result}`
     : `Computer tapped your ${toVal} with its ${fromVal}. ${result}`;
 }
 
-/** Play a canonical engine move for `side` (used for the computer and for splits). */
-function play(side, move) {
-  app.history.push({ who: side, before: snapshot(), text: "" });
+/** Display indices (attacker, target) for a canonical attack by `side`. */
+function displayIndices(side, move) {
   const state = canonFor(side);
+  return [
+    app.hands[side].indexOf(state[0][move.from]),
+    app.hands[other(side)].indexOf(state[1][move.to]),
+  ];
+}
+
+/**
+ * Play a canonical engine move for `side` (the computer's moves and your
+ * splits). `glideTo` is the transform the attacking hand ended its glide at.
+ */
+function play(side, move, glideTo = null) {
+  app.history.push({ who: side, before: snapshot(), text: "" });
   const mine = app.hands[side];
   const theirs = app.hands[other(side)];
   if (move.type === "attack") {
-    const fromVal = state[0][move.from];
-    const toVal = state[1][move.to];
-    const toIdx = theirs.indexOf(toVal);
+    const [fromIdx, toIdx] = displayIndices(side, move);
+    const fromVal = mine[fromIdx];
+    const toVal = theirs[toIdx];
     const after = addFingers(toVal, fromVal, app.rules);
     const next = [...theirs];
     next[toIdx] = after;
     app.hands[other(side)] = next;
-    finishMove(side, attackText(side, fromVal, toVal, after), toIdx);
+    finishMove(side, attackText(side, fromVal, toVal, after),
+      { type: "attack", side, fromIdx, toIdx, amount: fromVal, glideTo });
   } else {
     const before = canonHands(...mine);
     app.hands[side] = [...move.hands];
     const who = side === "you" ? "You" : "Computer";
-    finishMove(side, `${who}: ${describeSplit(before, move.hands)} ${fmt(before)} → ${fmt(move.hands)}`);
+    finishMove(side, `${who}: ${describeSplit(before, move.hands)} ${fmt(before)} → ${fmt(move.hands)}`,
+      { type: "split", side });
   }
 }
 
-/** Your attack from display hand i onto the computer's display hand j. */
-function humanAttack(i, j) {
+/**
+ * Your attack from display hand i onto the computer's display hand j. With
+ * `animate`, your hand first glides onto theirs (used for click attacks; a
+ * drag has already put it there).
+ */
+async function humanAttack(i, j, animate = false) {
+  if (app.busy || app.over || app.turn !== "you") return;
+  if (app.hands.you[i] === 0 || app.hands.ai[j] === 0) return;
+  const gen = app.gen;
+  let glideTo = null;
+  if (animate) {
+    app.busy = true;
+    glideTo = await glide("you", i, j);
+    app.busy = false;
+    if (gen !== app.gen) return;
+  }
   const mine = app.hands.you;
   const theirs = app.hands.ai;
-  if (app.over || app.turn !== "you" || mine[i] === 0 || theirs[j] === 0) return;
   const hit = [...theirs];
   hit[j] = addFingers(theirs[j], mine[i], app.rules);
   app.history.push({ who: "you", before: snapshot(), text: "" });
   app.hands.ai = hit; // keep the exact hands the player chose in the display
-  finishMove("you", attackText("you", mine[i], theirs[j], hit[j]), j);
-}
-
-function flash(side, idx) {
-  const el = document.querySelector(`#${side}-hands .hand[data-i="${idx}"]`);
-  if (!el) return;
-  el.classList.remove("hit");
-  void el.offsetWidth; // restart the animation
-  el.classList.add("hit");
+  finishMove("you", attackText("you", mine[i], theirs[j], hit[j]),
+    { type: "attack", side: "you", fromIdx: i, toIdx: j, amount: mine[i], glideTo });
 }
 
 function scheduleAi() {
   const gen = app.gen;
-  setTimeout(() => {
+  setTimeout(async () => {
     if (gen !== app.gen || app.over || app.turn !== "ai") return;
-    play("ai", chooseAiMove());
+    const move = chooseAiMove();
+    let glideTo = null;
+    if (move.type === "attack") {
+      const [fromIdx, toIdx] = displayIndices("ai", move);
+      app.busy = true;
+      glideTo = await glide("ai", fromIdx, toIdx);
+      app.busy = false;
+      if (gen !== app.gen) return; // undo / new game during the glide
+    }
+    play("ai", move, glideTo);
   }, AI_DELAY_MS);
+}
+
+// ---------------------------------------------------------------- attack animation
+
+/**
+ * Carry `side`'s hand onto the target hand, the way a drag does: lifted with a
+ * shadow, target outlined, a short pause on contact. Resolves with the final
+ * transform (or null when motion is reduced) so the redraw can slide it home.
+ */
+async function glide(side, fromIdx, toIdx) {
+  const a = handEl(side, fromIdx);
+  const t = handEl(other(side), toIdx);
+  if (!a || !t || reduceMotion()) return null;
+  const ra = a.getBoundingClientRect();
+  const rt = t.getBoundingClientRect();
+  const dx = (rt.left + rt.width / 2 - (ra.left + ra.width / 2)) * 0.9;
+  const dy = (rt.top + rt.height / 2 - (ra.top + ra.height / 2)) * 0.9;
+  const to = `translate(${dx}px, ${dy}px) scale(1.04)`;
+  a.classList.add("dragging");
+  t.classList.add("drop-hover");
+  await a.animate([{ transform: "none" }, { transform: to }], {
+    duration: GLIDE_MS, easing: "cubic-bezier(.45,0,.25,1)", fill: "forwards",
+  }).finished;
+  await sleep(GLIDE_HOLD_MS);
+  return to;
+}
+
+/** After the redraw: slide the attacker home and mark the hit (or the split). */
+function land(effect) {
+  if (!effect) return;
+  if (effect.type === "split") {
+    document.querySelectorAll(`#${effect.side}-hands .hand`).forEach((h) => h.classList.add("reshuffle"));
+    return;
+  }
+  const attacker = handEl(effect.side, effect.fromIdx);
+  if (attacker && effect.glideTo) {
+    attacker.classList.add("dragging");
+    attacker.animate([{ transform: effect.glideTo }, { transform: "none" }], {
+      duration: RETURN_MS, easing: "cubic-bezier(.2,.8,.3,1)",
+    }).finished.then(() => attacker.classList.remove("dragging"));
+  }
+  const target = handEl(other(effect.side), effect.toIdx);
+  if (target) {
+    target.classList.add("struck", `by-${effect.side}`);
+    const badge = document.createElement("span");
+    badge.className = "delta";
+    badge.textContent = `+${effect.amount}`;
+    target.appendChild(badge);
+  }
 }
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
@@ -202,7 +294,7 @@ function computeHint() {
  * (select, then click a target), so both styles work.
  */
 function startDrag(e, el, i) {
-  if (e.button !== 0 || app.over || app.turn !== "you") return;
+  if (e.button !== 0 || app.busy || app.over || app.turn !== "you") return;
   const start = { x: e.clientX, y: e.clientY };
   let dragging = false;
   let target = null;
@@ -303,6 +395,7 @@ function renderHands(side) {
       b.addEventListener("pointerdown", (e) => startDrag(e, b, i));
       b.addEventListener("click", () => {
         if (b.dataset.dragged) { delete b.dataset.dragged; return; }
+        if (app.busy) return;
         app.selected = app.selected === i ? null : i;
         app.splitOpen = false;
         render();
@@ -313,7 +406,7 @@ function renderHands(side) {
       b.disabled = !canTarget;
       if (canTarget) b.classList.add("target");
       if (hintMove?.type === "attack" && hands.indexOf(app.hint.state[1][hintMove.to]) === i) b.classList.add("hinted");
-      b.addEventListener("click", () => humanAttack(app.selected ?? liveMine[0], i));
+      b.addEventListener("click", () => humanAttack(app.selected ?? liveMine[0], i, true));
     }
     box.appendChild(b);
   });
@@ -370,6 +463,10 @@ function render() {
   const status = $("status");
   status.textContent = text;
   status.className = `status ${cls}`;
+  const last = app.history[app.history.length - 1];
+  const lastEl = $("last-move");
+  lastEl.textContent = last?.text ?? "";
+  lastEl.className = `last-move${last ? ` by-${last.who}` : ""}`;
   $("move-count").textContent = `Move ${app.plies} of ${app.rules.max_moves}`;
   $("summary").textContent = summaryText();
 

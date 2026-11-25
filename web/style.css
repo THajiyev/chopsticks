@@ -202,18 +202,79 @@ h1 {
   pointer-events: none;
 }
 
-.hand.hit { animation: hit 420ms ease; }
-@keyframes hit {
-  0% { transform: scale(1); }
-  35% { transform: scale(1.08); }
-  100% { transform: scale(1); }
+/* ---- hit feedback ------------------------------------------------------ */
+
+.hand.by-ai, .last-move.by-ai { --hitter: var(--ai); }
+.hand.by-you, .last-move.by-you { --hitter: var(--you); }
+
+/* The struck hand is knocked back (away from the attacker) and wobbles. */
+.hand.you.struck { --knock: 10px; }
+.hand.ai.struck { --knock: -10px; }
+.hand.struck { animation: struck 520ms ease-out; }
+@keyframes struck {
+  0% { transform: none; }
+  18% { transform: translateY(var(--knock)) scale(0.94); }
+  40% { transform: translateX(-5px); }
+  60% { transform: translateX(4px); }
+  80% { transform: translateX(-2px); }
+  100% { transform: none; }
+}
+/* A ring in the attacker's colour bursts outward from the struck hand. */
+.hand.struck::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 3px solid var(--hitter);
+  border-radius: 28px;
+  pointer-events: none;
+  opacity: 0;
+  animation: burst 560ms ease-out;
+}
+@keyframes burst {
+  from { opacity: 0.9; transform: scale(0.92); }
+  to { opacity: 0; transform: scale(1.2); }
+}
+/* "+3" badge: how many fingers were added. */
+.hand .delta {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--hitter);
+  font: 700 1.5rem/1.2 var(--display);
+  box-shadow: 0 4px 12px rgba(27, 38, 64, 0.18);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%);
+  animation: delta 1300ms ease-out;
+}
+@keyframes delta {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.8); }
+  15% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  70% { opacity: 1; transform: translate(-50%, -6px); }
+  100% { opacity: 0; transform: translate(-50%, -18px); }
+}
+/* A split: both of the mover's hands squash briefly. */
+.hand.reshuffle { animation: reshuffle 420ms ease-in-out; }
+@keyframes reshuffle {
+  0%, 100% { transform: none; }
+  40% { transform: scale(1.06, 0.9); }
 }
 
 .status-wrap {
-  min-height: 84px;
+  min-height: 108px;
   margin: 24px 0;
   width: 100%;
   text-align: center;
+}
+.last-move {
+  margin: 0 0 6px;
+  min-height: 1.5em;
+  color: var(--hitter, var(--ink-2));
+  font-weight: 700;
+  font-size: 0.95rem;
 }
 .status {
   margin: 0;

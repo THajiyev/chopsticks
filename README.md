@@ -150,6 +150,9 @@ the side-by-side comparison.
 - Drag one of your hands onto one of the computer's to attack (mouse or touch),
   or click yours and then theirs. Dead hands stay on the table, greyed out with
   a dashed outline, until you revive them.
+- When the computer attacks, its hand glides onto yours the same way, and the
+  hit shows how many fingers were added. A line above the status spells out
+  what happened, including wrap-arounds ("4 + 4 = 8, which wraps to 3").
 - **Split** lists the legal splits, labeled by type: "Revive: (0,3) → (1,2)",
   "Suicide split: (1,1) → (0,2)". The button is disabled when no split is legal.
 - **Hint** shows the solver's verdict ("You can force a win in 3 moves") and
