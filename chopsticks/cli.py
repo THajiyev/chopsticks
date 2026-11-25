@@ -110,12 +110,17 @@ def commentary(reports) -> str:
     if "standard" in by and "no_suicide" in by:
         s, n = by["standard"].solution, by["no_suicide"].solution
         sv, nv = s.value[start], n.value[start]
-        lines.append(
-            f"- **Suicide splits decide the game.** Under standard rules the starting position "
-            f"is a {sv.value} for the first player"
-            + (f" (the second player forces a win within {s.distance[start]} plies)" if sv is Value.LOSS else "")
-            + f". Banning suicide splits makes it a {nv.value}."
+        standard = (
+            f"Under standard rules the starting position is a {sv.value} for the first player"
+            + (f" (the second player forces a win within {s.distance[start]} plies)"
+               if sv is Value.LOSS else "")
         )
+        if sv is nv:
+            lines.append(f"- **Suicide splits don't change the result.** {standard}, and it is "
+                         f"still a {nv.value} with suicide splits banned.")
+        else:
+            lines.append(f"- **Suicide splits decide the game.** {standard}. Banning suicide "
+                         f"splits makes it a {nv.value}.")
     for r in reports:
         v = r.solution.value[start]
         d = r.solution.distance[start]

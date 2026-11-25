@@ -9,12 +9,18 @@ from chopsticks.game import Attack, Split, initial_state, is_terminal, successor
 from chopsticks.rules import PRESETS, Rules
 from chopsticks.solver import Value, solve
 
-STD = Rules()
+STD = Rules()  # sum mod 5
+CUT = Rules(overflow="cutoff")
 
 
 @pytest.fixture(scope="module")
 def std():
     return solve(STD)
+
+
+@pytest.fixture(scope="module")
+def cut():
+    return solve(CUT)
 
 
 def test_terminal_is_loss(std):
@@ -35,19 +41,38 @@ def test_forced_loss_in_two(std):
     assert std.value[s] is Value.LOSS and std.distance[s] == 2
 
 
-def test_revive_is_the_only_winning_move(std):
-    # (0,4) vs (1,1). Attacking kills one opponent hand but leaves (0,1) facing
-    # our lone 4: their 1 taps it to 5 and we're out. Reviving to (1,3) wins.
+def test_revive_is_the_only_winning_move_under_cutoff(cut):
+    # Cutoff rules, (0,4) vs (1,1). Attacking kills one opponent hand but leaves
+    # (0,1) facing our lone 4: their 1 taps it to 5 and we're out. Reviving to
+    # (1,3) wins.
     s = ((0, 4), (1, 1))
     after_attack = ((0, 1), (0, 4))
-    assert std.value[after_attack] is Value.WIN and std.distance[after_attack] == 1
-    assert std.value[s] is Value.WIN
-    assert std.optimal[s] == [Split((1, 3))]
+    assert cut.value[after_attack] is Value.WIN and cut.distance[after_attack] == 1
+    assert cut.value[s] is Value.WIN
+    assert cut.optimal[s] == [Split((1, 3))]
+
+
+def test_revive_avoids_the_blunder(std):
+    # Same position under mod 5: attacking still loses in one, and both revives
+    # hold the draw.
+    s = ((0, 4), (1, 1))
+    assert std.value[((0, 1), (0, 4))] is Value.WIN
+    assert std.value[s] is Value.DRAW
+    assert set(std.optimal[s]) == {Split((1, 3)), Split((2, 2))}
+
+
+def test_four_plus_four_wraps_instead_of_killing(std, cut):
+    # (0,4) vs (0,4): under cutoff 4+4 kills the last hand (win in 1); under
+    # mod 5 it leaves the opponent a 3, so there's no immediate win.
+    s = ((0, 4), (0, 4))
+    assert cut.value[s] is Value.WIN and cut.distance[s] == 1
+    assert std.distance[s] != 1
+    assert dict(successors(s, STD))[Attack(1, 1)] == ((0, 3), (0, 4))
 
 
 def test_win_in_three_by_hand(std):
-    # (0,3) vs (1,2): tap their 2 with our 3 -> they have (0,1) and no split,
-    # must tap our 3 up to 4, and our 4 then kills their 1.
+    # (0,3) vs (1,2): tap their 2 with our 3 (exactly 5 -> dead) -> they have
+    # (0,1) and no split, must tap our 3 up to 4, and our 4 then kills their 1.
     s = ((0, 3), (1, 2))
     assert std.value[s] is Value.WIN and std.distance[s] == 3
     assert std.optimal[s] == [Attack(1, 1)]
@@ -105,5 +130,7 @@ def test_distances_match_depth_limited_search(name):
 
 def test_start_values():
     start = initial_state()
-    assert solve(PRESETS["standard"]).value[start] is Value.LOSS
+    assert solve(PRESETS["standard"]).value[start] is Value.DRAW
     assert solve(PRESETS["no_suicide"]).value[start] is Value.DRAW
+    cut = solve(PRESETS["cutoff"])
+    assert cut.value[start] is Value.LOSS and cut.distance[start] == 26

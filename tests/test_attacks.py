@@ -16,8 +16,16 @@ from chopsticks.game import (
 )
 from chopsticks.rules import PRESETS, Rules
 
-CUT = Rules()
-ROLL = Rules(overflow="rollover")
+CUT = Rules(overflow="cutoff")
+ROLL = Rules()
+
+
+def test_default_overflow_is_sum_mod_5():
+    assert Rules().overflow == "rollover"
+    # Opponent's 4 taps our 4: we're left with (4+4) mod 5 = 3.
+    assert apply_move(((0, 4), (0, 4)), Attack(1, 1), Rules()) == ((0, 3), (0, 4))
+    # Exactly 5 still kills.
+    assert apply_move(((0, 2), (0, 3)), Attack(1, 1), Rules()) == ((0, 0), (0, 2))
 
 
 def test_basic_attack_and_perspective_swap():

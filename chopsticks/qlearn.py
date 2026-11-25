@@ -21,7 +21,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-from .game import Move, State, apply_move, initial_state, state_key, successors, winner
+from .game import Move, State, initial_state, reachable_states, state_key, successors, winner
 from .rules import Rules
 
 QDict = dict[str, dict[str, float]]
@@ -130,54 +130,100 @@ class TrainConfig:
 CheckpointFn = Callable[[int, QTable], None]
 
 
-def _choose(q: QTable, state: State, rules: Rules, eps: float, rng: random.Random) -> Move:
+class _Graph:
+    """The reachable state graph compiled to integer ids, for fast training.
+
+    ``moves[i]`` / ``nexts[i]`` list state ``i``'s legal moves and the ids of
+    the resulting states; ``result[i]`` is :func:`winner` for state ``i``
+    (``None`` while the game is on).
+    """
+
+    def __init__(self, rules: Rules) -> None:
+        self.states = reachable_states(rules)
+        index = {s: i for i, s in enumerate(self.states)}
+        self.moves: list[list[Move]] = []
+        self.nexts: list[list[int]] = []
+        for s in self.states:
+            succ = successors(s, rules)
+            self.moves.append([m for m, _ in succ])
+            self.nexts.append([index[n] for _, n in succ])
+        self.result = [winner(s, rules) for s in self.states]
+        self.start = index[initial_state()]
+
+    def new_q(self) -> list[list[float]]:
+        return [[0.0] * len(ms) for ms in self.moves]
+
+    def to_qtable(self, q: list[list[float]], touched: set[int]) -> QTable:
+        """Export the visited part of the array table as a :class:`QTable`."""
+        return QTable(
+            {
+                state_key(self.states[i]): {m.key: q[i][k] for k, m in enumerate(self.moves[i])}
+                for i in sorted(touched)
+            }
+        )
+
+
+def _greedy(row: list[float], rng: random.Random) -> int:
+    """Index of a best entry, ties broken at random."""
+    best = max(row)
+    ties = [k for k, v in enumerate(row) if v >= best - 1e-9]
+    return ties[0] if len(ties) == 1 else rng.choice(ties)
+
+
+def _choose(row: list[float], eps: float, rng: random.Random) -> int:
     if rng.random() < eps:
-        return rng.choice([m for m, _ in successors(state, rules)])
-    return rng.choice(q.greedy_moves(state, rules))
-
-
-def _random_move(state: State, rules: Rules, rng: random.Random) -> Move:
-    return rng.choice([m for m, _ in successors(state, rules)])
+        return rng.randrange(len(row))
+    return _greedy(row, rng)
 
 
 def train_naive(
     rules: Rules, cfg: TrainConfig, on_checkpoint: Optional[CheckpointFn] = None
 ) -> QTable:
-    """Train Agent A against a uniform-random opponent."""
+    """Train Agent A against a uniform-random opponent.
+
+    Each step: the agent moves (s, a) -> s1, the random opponent replies
+    s1 -> s2, and Q(s, a) moves toward r + gamma * max Q(s2) (or the final
+    reward if the game ended on either move).
+    """
     rng = random.Random(cfg.seed)
-    q = QTable()
+    g = _Graph(rules)
+    q = g.new_q()
+    touched: set[int] = set()
     checkpoints = set(cfg.checkpoint_episodes())
+    alpha, gamma, cap = cfg.alpha, cfg.gamma, rules.max_moves
     for ep in range(cfg.episodes):
         eps = cfg.epsilon(ep)
-        s = initial_state()
+        s = g.start
         plies = 0
         if ep % 2 == 1:  # random player moves first on odd episodes
-            s = apply_move(s, _random_move(s, rules, rng), rules)
+            s = g.nexts[s][rng.randrange(len(g.nexts[s]))]
             plies += 1
         while True:
-            a = _choose(q, s, rules, eps, rng)
-            s1 = apply_move(s, a, rules)
+            a = _choose(q[s], eps, rng)
+            touched.add(s)
+            s1 = g.nexts[s][a]
             plies += 1
-            if winner(s1, rules) is not None:  # opponent to move has lost
-                q.set(s, a, q_update(q.get(s, a), naive_target(1.0, 0.0, cfg.gamma, True), cfg.alpha))
-                break
-            if plies >= rules.max_moves:
-                q.set(s, a, q_update(q.get(s, a), 0.0, cfg.alpha))
-                break
-            s2 = apply_move(s1, _random_move(s1, rules, rng), rules)
-            plies += 1
-            if winner(s2, rules) is not None:  # agent to move has lost
-                q.set(s, a, q_update(q.get(s, a), naive_target(-1.0, 0.0, cfg.gamma, True), cfg.alpha))
-                break
-            if plies >= rules.max_moves:
-                q.set(s, a, q_update(q.get(s, a), 0.0, cfg.alpha))
-                break
-            target = naive_target(0.0, q.best_value(s2, rules), cfg.gamma, False)
-            q.set(s, a, q_update(q.get(s, a), target, cfg.alpha))
-            s = s2
+            if g.result[s1] is not None:  # opponent to move has lost
+                target = naive_target(1.0, 0.0, gamma, True)
+            elif plies >= cap:
+                target = 0.0
+            else:
+                s2 = g.nexts[s1][rng.randrange(len(g.nexts[s1]))]
+                plies += 1
+                if g.result[s2] is not None:  # agent to move has lost
+                    target = naive_target(-1.0, 0.0, gamma, True)
+                elif plies >= cap:
+                    target = 0.0
+                else:
+                    target = naive_target(0.0, max(q[s2]), gamma, False)
+                    q[s][a] = q_update(q[s][a], target, alpha)
+                    s = s2
+                    continue
+            q[s][a] = q_update(q[s][a], target, alpha)
+            break
         if on_checkpoint and (ep + 1) in checkpoints:
-            on_checkpoint(ep + 1, q.copy())
-    return q
+            on_checkpoint(ep + 1, g.to_qtable(q, touched))
+    return g.to_qtable(q, touched)
 
 
 def train_minimax(
@@ -185,31 +231,32 @@ def train_minimax(
 ) -> QTable:
     """Train Agent B by self-play with a shared table and negamax targets."""
     rng = random.Random(cfg.seed)
-    q = QTable()
+    g = _Graph(rules)
+    q = g.new_q()
+    touched: set[int] = set()
     checkpoints = set(cfg.checkpoint_episodes())
+    alpha, gamma, cap = cfg.alpha, cfg.gamma, rules.max_moves
     for ep in range(cfg.episodes):
         eps = cfg.epsilon(ep)
-        s = initial_state()
+        s = g.start
         plies = 0
         while True:
-            a = _choose(q, s, rules, eps, rng)
-            s1 = apply_move(s, a, rules)
+            a = _choose(q[s], eps, rng)
+            touched.add(s)
+            s1 = g.nexts[s][a]
             plies += 1
-            result = winner(s1, rules)  # from the new mover's perspective
+            result = g.result[s1]  # from the new mover's perspective
             if result is not None:
-                target = negamax_target(-float(result), 0.0, cfg.gamma, True)
-                q.set(s, a, q_update(q.get(s, a), target, cfg.alpha))
+                q[s][a] = q_update(q[s][a], negamax_target(-float(result), 0.0, gamma, True), alpha)
                 break
-            if plies >= rules.max_moves:
-                q.set(s, a, q_update(q.get(s, a), 0.0, cfg.alpha))
+            if plies >= cap:
+                q[s][a] = q_update(q[s][a], 0.0, alpha)
                 break
-            target = negamax_target(0.0, q.best_value(s1, rules), cfg.gamma, False)
-            q.set(s, a, q_update(q.get(s, a), target, cfg.alpha))
+            q[s][a] = q_update(q[s][a], negamax_target(0.0, max(q[s1]), gamma, False), alpha)
             s = s1
         if on_checkpoint and (ep + 1) in checkpoints:
-            on_checkpoint(ep + 1, q.copy())
-    return q
-
+            on_checkpoint(ep + 1, g.to_qtable(q, touched))
+    return g.to_qtable(q, touched)
 
 TRAINERS = {"naive": train_naive, "minimax": train_minimax}
 

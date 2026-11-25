@@ -12,8 +12,9 @@ Two players, two hands each, every hand starting with one finger. On your turn
 you do exactly one of:
 
 - **Attack.** Tap one of the opponent's live hands with one of yours. Their hand
-  gains as many fingers as yours has; yours doesn't change. Under the default
-  *cutoff* rule a hand that reaches 5 or more fingers is dead (0).
+  gains as many fingers as yours has; yours doesn't change. The count wraps
+  around: the new value is the sum mod 5. So 4 + 4 leaves 3, 3 + 4 leaves 2,
+  and only an exact 5 (2 + 3, 1 + 4) kills the hand.
 - **Split.** Redistribute your own fingers between your two hands (0–4 each).
   The result must be a different position; just swapping hands doesn't count.
   - **Reviving:** a dead hand isn't gone for good. Splitting fingers onto it
@@ -28,9 +29,9 @@ that reaches 200 moves is a draw.
 
 | Preset | What changes |
 |---|---|
-| `standard` | Defaults: cutoff at 5, splits, revives and suicide splits allowed |
+| `standard` | Defaults: sums wrap mod 5; splits, revives and suicide splits allowed |
 | `no_suicide` | A split may not leave a hand at 0 (revives still allowed) |
-| `rollover` | A hand wraps around mod 5 instead of dying at 5+ (exactly 5 is still dead) |
+| `cutoff` | Any hand that reaches 5 or more dies (4 + 4 kills instead of leaving 3) |
 | `no_splits` | Attacks only |
 | `no_revive` | Dead hands stay dead; splits only when both hands are alive |
 
@@ -48,7 +49,7 @@ python -m venv .venv
 pip install -r requirements.txt
 
 python -m chopsticks all          # solve -> train -> evaluate -> export (about 3 minutes)
-pytest                            # 92 tests
+pytest                            # 95 tests
 
 python -m http.server             # then open http://localhost:8000/web/
 ```
@@ -85,16 +86,20 @@ Full tables are in [results/results.md](results/results.md).
 
 | Preset | Reachable states | WIN / LOSS / DRAW | Starting position, first player |
 |---|---:|---|---|
-| standard | 191 | 120 / 61 / 10 | **LOSS** (second player wins within 26 plies) |
-| no_suicide | 171 | 42 / 18 / 111 | **DRAW** |
-| rollover | 207 | 72 / 35 / 100 | **DRAW** |
-| no_splits | 92 | 57 / 35 / 0 | **LOSS** in 8 plies |
-| no_revive | 166 | 110 / 56 / 0 | **LOSS** in 10 plies |
+| standard | 207 | 72 / 35 / 100 | **DRAW** |
+| no_suicide | 204 | 25 / 17 / 162 | **DRAW** |
+| cutoff | 191 | 120 / 61 / 10 | **LOSS** (second player wins within 26 plies) |
+| no_splits | 200 | 82 / 46 / 72 | **DRAW** |
+| no_revive | 207 | 91 / 48 / 68 | **DRAW** |
 
-**Whether suicide splits are allowed decides the game.** With them (standard
-rules), the second player can force a win. Ban them and, with perfect play,
-nobody can win. Drawn positions go from 10 to 111, because suicide splits are
-the tool that breaks the defensive cycles.
+**With sums wrapping mod 5, Chopsticks is a draw.** Neither player can force a
+win from the start, whether or not suicide splits are allowed. Banning them
+does leave far more of the game drawn, though: drawn positions rise from 100
+to 162.
+
+**Wrapping is what saves the first player.** Under cutoff rules, where 4 + 4
+kills, the second player can force a win. In that variant suicide splits are
+decisive: with them banned, cutoff is a draw as well (171 states, 111 drawn).
 
 ### How the agents compare
 
@@ -105,42 +110,40 @@ the tool that breaks the defensive cycles.
 throw away a win or a draw.
 
 - **Minimax (B) learns the game.** It plays a solver-optimal move in 100% of
-  reachable states in four presets, and 98.8% in no_suicide (where every miss
-  still keeps the game's result). Its value estimates match the solver's WIN/LOSS/DRAW
-  verdict in 100% of states. In the tournament it is indistinguishable from
-  Perfect: under standard rules each wins every game in which it moves second.
-- **Naive (A) learns to beat Random, not to play well.** It wins 400/400
-  against Random in three presets, but under standard rules only 86% of its
-  moves are optimal. Under standard rules it never beats Perfect: of 400 games
-  it loses 200 and draws 200, even though the second player can always force a
-  win.
-  Under rollover, where the start is a draw, it loses 396 of 400 to Perfect.
-  Its Q-values describe "winning against a random player," so they agree with
-  the solver's verdict in only 27–68% of states in presets with draws. That is
-  what you expected, and it is what happened.
+  reachable states in all five presets. Its value estimates match the solver's
+  WIN/LOSS/DRAW verdict in every state. In the tournament it is
+  indistinguishable from Perfect: every game between them is drawn, except
+  under cutoff, where whoever moves second wins.
+- **Naive (A) learns to beat Random, not to play well.** It beats Random in
+  392–400 of 400 games in every preset. Under standard rules, though, only 92%
+  of its moves are optimal. Even though the start is a draw, it loses 399 of
+  400 games to Perfect and all 400 to Minimax (B). It also loses most games to
+  Perfect under no_revive (290 of 400) and every game where it moves first
+  under cutoff. Its Q-values describe "winning against a random player," so
+  they agree with the solver's verdict in only 14–68% of states. That is what
+  you expected, and it is what happened.
 - **Easy (half-trained B)** is the earliest checkpoint with half of B's final
   skill (100–1,000 episodes depending on the preset). It beats Random in
-  94–100% of games, but under standard, no_suicide and rollover rules it loses
-  most games to Naive (364, 400 and 245 of 400).
-- In `no_splits` and `no_revive` the game is short and the first player loses
-  regardless, so all trained agents tie 200/200 with each other. There isn't
-  much room to be better there.
-- Against Random, Perfect isn't the best scorer. In a lost position Perfect
-  plays the *slowest* loss against a perfect opponent rather than gambling on
-  Random's mistakes, and it loses 31 of 400 to Random in no_splits.
+  94–100% of games but loses to Naive: under standard rules 284 of 400, and
+  under cutoff 370. Under no_suicide most of those games are draws instead.
+- Against Random, Perfect isn't the best scorer. It plays to secure the
+  game-theoretic result, not to exploit mistakes. Under no_splits it draws 24
+  of 400 against Random, while Naive (trained on Random) draws only 8.
 
 ![Learning curves](results/learning_curves.png)
 
 ### One departure from the spec: γ = 0.95, not 1.0
 
-With γ = 1, a win in 3 moves and a win in 30 are both worth +1, so Agent B had
-no reason to finish games. It kept every won position (value-preserving stayed
-at 100%), but under standard rules only 74% of its moves were solver-optimal.
-Against Perfect it drew 161 of the 200 games it should have won, by circling
-until the 200-move cap. Discounting with γ = 0.95 makes faster wins worth more,
-which is exactly what the solver's distance-to-result encodes, and B then
-reaches 100%. `python -m chopsticks all` also retrains B with γ = 1.0, and
-results.md shows the side-by-side comparison.
+With γ = 1, a win in 3 moves and a win in 30 are both worth +1, so Agent B has
+no reason to finish games. It keeps every won position (value-preserving stays
+at 100%), but it can circle among them until the 200-move cap calls a draw.
+Under standard rules this barely shows (99.0% vs 100% optimal), because most
+positions are drawn anyway. Under cutoff it is severe: only 73.9% of moves are
+optimal, and B drew 157 of the 200 games it should have won against Perfect.
+Discounting with γ = 0.95 makes faster wins worth more, which is exactly what
+the solver's distance-to-result encodes, and B reaches 100% in every preset.
+`python -m chopsticks all` also retrains B with γ = 1.0, and results.md shows
+the side-by-side comparison.
 
 ## The web game
 
@@ -159,7 +162,7 @@ results.md shows the side-by-side comparison.
 `pytest` covers:
 - the full split table and every rule variant;
 - that swap-only splits are rejected;
-- attacks under cutoff and rollover;
+- attacks under mod-5 and cutoff overflow, including 4 + 4 → 3;
 - canonicalization;
 - solver positions checked by hand, plus a check that every state's label is a
   consistent fixed point, and an independent depth-limited search that

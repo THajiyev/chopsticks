@@ -12,7 +12,7 @@ from chopsticks.qlearn import (
     train_minimax,
     train_naive,
 )
-from chopsticks.rules import PRESETS, Rules
+from chopsticks.rules import Rules
 from chopsticks.solver import Value, solve
 
 STD = Rules()
@@ -73,8 +73,8 @@ def test_training_is_reproducible():
 
 
 def test_minimax_learns_no_splits_values():
-    """On the small draw-free no_splits game, self-play should learn every value's sign."""
-    rules = PRESETS["no_splits"]
+    """On the small, draw-free cutoff + no-splits game, self-play should learn every value's sign."""
+    rules = Rules(overflow="cutoff", splits_allowed=False)
     sol = solve(rules)
     q = train_minimax(rules, TrainConfig(episodes=15_000, seed=1))
     played = [s for s in sol.states if sol.optimal[s]]
